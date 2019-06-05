@@ -40,6 +40,7 @@ final class ItemController
 
                 $publishedDate = $item->filter('#published-date');
                 $description = $item->filter('#description');
+                $content = $item->filter('#content');
                 $jats = $item->filter('[rel="alternate"][type="application/jats+xml"]');
 
                 if (count($publishedDate)) {
@@ -50,13 +51,12 @@ final class ItemController
                     $data['description'] = $description->html();
                 }
 
-                if (count($jats)) {
+                if (count($content)) {
+                    $data['content'] = $content->html();
+                } elseif (count($jats)) {
                     /** @var Crawler $jats */
                     $jats = yield $this->browser->click($jats->link());
-                    $doc = $jats->getNode(0)->ownerDocument;
-                    $doc->preserveWhiteSpace = false;
-                    $doc->formatOutput = true;
-                    $data['jats'] = $doc->saveXML();
+                    $data['content'] = $jats->filter('article > body')->text();
                 }
 
                 yield new Response($this->twig->render('item.html.twig', ['item' => $data]));

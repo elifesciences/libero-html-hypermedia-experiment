@@ -12,8 +12,8 @@
         {{ item.description|raw }}
     {% endif %}
 
-    {% if item.jats|default(null) %}
-        <pre>{{ item.jats }}</pre>
+    {% if item.content|default(null) %}
+        {{ item.content|raw }}
     {% endif %}
 
 {% endblock body %}
