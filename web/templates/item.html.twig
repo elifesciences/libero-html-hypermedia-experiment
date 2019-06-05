@@ -1,0 +1,19 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+
+    <h1>{{ item.title|raw }}</h1>
+
+    {% if item.published_date|default(null) %}
+        <p>Published on {{ item.published_date|date('F j, Y') }}.</p>
+    {% endif %}
+
+    {% if item.description|default(null) %}
+        {{ item.description|raw }}
+    {% endif %}
+
+    {% if item.jats|default(null) %}
+        <pre>{{ item.jats }}</pre>
+    {% endif %}
+
+{% endblock body %}

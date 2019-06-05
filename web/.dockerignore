@@ -1,0 +1,4 @@
+/.docker/
+/public/bundles/
+/var/
+/vendor/

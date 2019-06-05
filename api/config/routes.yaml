@@ -1,0 +1,7 @@
+home:
+    path: /
+    controller: App\Controller\HomeController
+
+item:
+    path: /items
+    controller: App\Controller\ItemController

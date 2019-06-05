@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+
+    <h1 id="title">{{ item.title|raw }}</h1>
+
+    <p>
+        ID: <span id="id">{{ item.id }}</span>
+    </p>
+
+    {% if item.doi|default(null) %}
+        <p>
+            DOI: <a href="https://doi.org/{{ item.doi }}" id="doi">{{ item.doi }}</a>
+        </p>
+    {% endif %}
+
+    {% if item.datePublished|default(null) %}
+        <time datetime="{{ item.datePublished|date('Y-m-d') }}" id="published-date">{{ item.datePublished|date }}</time>
+    {% endif %}
+
+    {% if item.description|default(null) %}
+
+        <div id="description">
+            {{ item.description|raw }}
+        </div>
+
+    {% endif %}
+
+    {% if item.jats|default(null) %}
+        <a href="{{ item.jats }}" rel="alternate" hreflang="en" type="application/jats+xml">JATS XML</a>
+    {% endif %}
+
+{% endblock body %}
