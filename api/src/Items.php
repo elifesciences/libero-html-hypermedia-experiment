@@ -291,10 +291,14 @@ HTML
         ],
     ];
 
-    public function get(string $id) : array
+    public function get(string $id, string $type = 'id') : array
     {
         foreach ($this as $item) {
-            if ($id === $item['id']) {
+            if ('https://identifiers.org/doi' === $type && $id === $item['doi'] ?? null) {
+                return $item;
+            }
+
+            if ('http://libero.pub/id' === $type && $id === $item['id']) {
                 return $item;
             }
         }

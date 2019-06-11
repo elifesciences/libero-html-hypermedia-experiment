@@ -2,38 +2,49 @@
 
 {% block body %}
 
-    <h1 id="title">{{ item.title|raw }}</h1>
+    <div typeof="Article">
 
-    <p>
-        ID: <span id="id">{{ item.id }}</span>
-    </p>
+        <h1 property="name" datatype="rdf:HTML">{{ item.title|raw }}</h1>
 
-    {% if item.doi|default(null) %}
-        <p>
-            DOI: <a href="https://doi.org/{{ item.doi }}" id="doi">{{ item.doi }}</a>
+        <p property="identifier" typeof="Identifier">
+            <span property="propertyID" resource="http://libero.pub/id">ID</span>:
+            <span property="value">{{ item.id }}</span>
         </p>
-    {% endif %}
 
-    {% if item.datePublished|default(null) %}
-        <time datetime="{{ item.datePublished|date('Y-m-d') }}" id="published-date">{{ item.datePublished|date }}</time>
-    {% endif %}
+        {% if item.doi|default(null) %}
+            <p property="identifier" typeof="Identifier">
+                <a href="https://identifiers.org/doi" property="propertyID">DOI</a>:
+                <meta property="value" content="{{ item.doi }}">
+                <a href="https://doi.org/{{ item.doi }}">{{ item.doi }}</a>
+            </p>
+        {% endif %}
 
-    {% if item.description|default(null) %}
+        {% if item.datePublished|default(null) %}
+            <time datetime="{{ item.datePublished|date('Y-m-d') }}"
+                  property="datePublished">{{ item.datePublished|date }}</time>
+        {% endif %}
 
-        <div id="description">
-            {{ item.description|raw }}
-        </div>
+        {% if item.description|default(null) %}
 
-    {% endif %}
+            <div property="description" datatype="rdf:HTML">
+                {{ item.description|raw }}
+            </div>
 
-    {% if item.jats|default(null) %}
-        View <a href="{{ item.jats }}" rel="alternate" hreflang="en" type="application/jats+xml">JATS XML</a>
-    {% endif %}
+        {% endif %}
 
-    {% if item.content|default(null) %}
-        <div id="content">
-            {{ item.content|raw }}
-        </div>
-    {% endif %}
+        {% if item.jats|default(null) %}
+            <p>View as:</p>
+            <ul>
+                <li property="encoding" typeof="MediaObject">
+                    <a href="{{ item.jats }}" property="contentUrl">
+                        <meta property="encodingFormat" content="application/jats+xml">
+                        <meta property="inLanguage" content="en">
+                        JATS XML
+                    </a>
+                </li>
+            </ul>
+        {% endif %}
+
+    </div>
 
 {% endblock body %}

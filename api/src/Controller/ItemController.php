@@ -22,14 +22,15 @@ final class ItemController
 
     public function __invoke(Request $request) : Response
     {
+        $type = $request->query->get('type');
         $id = $request->query->get('id');
 
-        if (null === $id) {
+        if (null === $type || null === $id) {
             throw new NotFoundHttpException();
         }
 
         try {
-            $item = $this->items->get($id);
+            $item = $this->items->get($id, $type);
         } catch (OutOfBoundsException $e) {
             throw new NotFoundHttpException('', $e);
         }

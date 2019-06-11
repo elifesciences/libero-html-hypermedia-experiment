@@ -2,20 +2,37 @@
 
 {% block body %}
 
-    <ol id="items">
+    <ol typeof="Collection">
         {% for item in items %}
             <li>
-                <a href="{{ path('item', {id: item.id}) }}" class="item">{{ item.title|raw }}</a>
+                <a href="{{ path('item', {type: 'http://libero.pub/id', id: item.id}) }}" property="hasPart">{{ item.title|raw }}</a>
             </li>
         {% endfor %}
     </ol>
 
-    <form id="get_item" action="{{ path('item') }}">
-        <label>
-            Item ID
-            <input name="id" required>
-        </label>
-        <input type="submit">
-    </form>
+    <div typeof="FindAction">
+
+        <h2>Find an item</h2>
+
+        <div property="actionHandler" typeof="HttpActionHandler">
+            <form action="{{ path('item') }}">
+                <meta property="url" content="{{ path('item') }}">
+                <meta property="result" typeof="Article">
+                <label property="requiredProperty" typeof="Property">
+                    ID type
+                    <select name="type" property="name" content="type">
+                        <option value="http://libero.pub/id">ID</option>
+                        <option value="https://identifiers.org/doi">DOI</option>
+                    </select>
+                </label>
+                <label property="requiredProperty" typeof="Property">
+                    Item ID
+                    <input name="id" required property="name" content="id">
+                </label>
+                <input type="submit">
+            </form>
+        </div>
+
+    </div>
 
 {% endblock body %}

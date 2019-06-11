@@ -8,6 +8,10 @@
         <p>Published on {{ item.published_date|date('F j, Y') }}.</p>
     {% endif %}
 
+    {% if item.doi|default(null) %}
+        <p><a href="https://doi.org/{{ item.doi }}">doi:{{ item.doi }}</a></p>
+    {% endif %}
+
     {% if item.description|default(null) %}
         {{ item.description|raw }}
     {% endif %}

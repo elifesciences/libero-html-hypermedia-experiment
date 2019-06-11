@@ -5,3 +5,9 @@ home:
 item:
     path: /items/{id}
     controller: App\Controller\ItemController
+
+itemDoi:
+    path: /items/{doi}
+    controller: App\Controller\ItemController
+    requirements:
+        doi: ^10[.][0-9]{4,}[^\s"/<>]*/[^\s"]+$

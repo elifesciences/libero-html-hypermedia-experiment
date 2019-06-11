@@ -5,7 +5,11 @@
     <ol>
         {% for item in items %}
             <li>
-                <a href="{{ path('item', {id: item.id}) }}">
+                {% if item.doi|default(null) %}
+                    <a href="{{ path('itemDoi', {doi: item.doi}) }}">
+                {% else %}
+                    <a href="{{ path('item', {id: item.id}) }}">
+                {% endif %}
                     {{ item.title|raw }}
                 </a>
             </li>

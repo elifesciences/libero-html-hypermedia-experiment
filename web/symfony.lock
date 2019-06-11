@@ -20,6 +20,9 @@
     "csa/guzzle-stopwatch-middleware": {
         "version": "v1.0.0"
     },
+    "easyrdf/easyrdf": {
+        "version": "dev-master"
+    },
     "guzzlehttp/guzzle": {
         "version": "6.3.3"
     },
