@@ -5,6 +5,7 @@ namespace App\Controller;
 use GuzzleHttp\Psr7\UriResolver;
 use ML\JsonLD\DocumentLoaderInterface;
 use ML\JsonLD\JsonLD;
+use ML\JsonLD\Node;
 use ML\JsonLD\TypedValue;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -42,30 +43,30 @@ final class HomeController
 
         $target = $findAction->getProperty('http://schema.org/target');
 
-        $urlTemplate = $target->getProperty('http://schema.org/urlTemplate');
+        switch (true) {
+            case $target instanceof TypedValue:
+                $targetUrl = $target->getValue();
+                break;
+            case $target instanceof Node && $urlTemplate = $target->getProperty('http://schema.org/urlTemplate'):
+                $inputs = [];
+                foreach ($findAction->getProperties() as $name => $value) {
+                    if (!preg_match('~^http://schema\.org/.+?-input$~', $name)) {
+                        continue;
+                    }
 
-        $inputs = [];
-        foreach ($findAction->getProperties() as $name => $value) {
-            if (!preg_match('~^http://schema\.org/.+?-input$~', $name)) {
-                continue;
-            }
-
-            $name = $value->getProperty('http://schema.org/valueName')->getValue();
-            $required = 'true' === $value->getProperty('http://schema.org/valueRequired')->getValue();
-
-            switch ($name) {
-                default:
-                    if ($required) {
+                    if ('true' === $value->getProperty('http://schema.org/valueRequired')->getValue()) {
                         throw new RuntimeException("Don't know how to set {$name}");
                     }
-            }
+                }
+
+                $targetUrl = uri_template($urlTemplate->getValue(), $inputs);
+                break;
+            default:
+                throw new RuntimeException("Don't know how to complete action");
         }
 
         $document = JsonLD::getDocument(
-            $base = (string) UriResolver::resolve(
-                uri_for($document->getIri()),
-                uri_for(uri_template($urlTemplate->getValue(), $inputs))
-            ),
+            $base = (string) UriResolver::resolve(uri_for($document->getIri()), uri_for($targetUrl)),
             [
                 'base' => $base,
                 'compactArrays' => false,

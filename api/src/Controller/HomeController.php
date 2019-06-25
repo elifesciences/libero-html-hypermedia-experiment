@@ -28,10 +28,7 @@ final class HomeController
                     [
                         '@type' => 'FindAction',
                         '@id' => $this->router->generate('homepage-list', [], UrlGeneratorInterface::ABSOLUTE_URL),
-                        'target' => [
-                            '@type' => 'EntryPoint',
-                            'urlTemplate' => $this->router->getRouteCollection()->get('items')->getPath(),
-                        ],
+                        'target' => $this->router->getRouteCollection()->get('items')->getPath(),
                     ],
                     [
                         '@type' => 'FindAction',
