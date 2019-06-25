@@ -9,6 +9,7 @@ services:
             APP_DEBUG: 'true'
             APP_ENV: dev
             APP_SECRET:
+            TRUSTED_PROXIES: 'true'
         volumes:
             - ./api:/app/
             - /app/var

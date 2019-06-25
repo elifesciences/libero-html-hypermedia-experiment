@@ -20,9 +20,6 @@
     "csa/guzzle-stopwatch-middleware": {
         "version": "v1.0.0"
     },
-    "easyrdf/easyrdf": {
-        "version": "dev-master"
-    },
     "guzzlehttp/guzzle": {
         "version": "6.3.3"
     },
@@ -32,8 +29,11 @@
     "guzzlehttp/psr7": {
         "version": "1.5.2"
     },
-    "masterminds/html5": {
-        "version": "2.6.0"
+    "ml/iri": {
+        "version": "1.1.4"
+    },
+    "ml/json-ld": {
+        "version": "1.1.0"
     },
     "psr/cache": {
         "version": "1.0.1"
@@ -72,16 +72,22 @@
             "config/bootstrap.php"
         ]
     },
-    "symfony/css-selector": {
-        "version": "v4.3.0"
-    },
     "symfony/debug": {
         "version": "v4.3.0"
     },
-    "symfony/dependency-injection": {
-        "version": "v4.3.0"
+    "symfony/debug-bundle": {
+        "version": "4.1",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "master",
+            "version": "4.1",
+            "ref": "f8863cbad2f2e58c4b65fa1eac892ab189971bea"
+        },
+        "files": [
+            "config/packages/dev/debug.yaml"
+        ]
     },
-    "symfony/dom-crawler": {
+    "symfony/dependency-injection": {
         "version": "v4.3.0"
     },
     "symfony/dotenv": {

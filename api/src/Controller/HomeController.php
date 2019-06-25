@@ -2,23 +2,55 @@
 
 namespace App\Controller;
 
-use App\Items;
+use App\Http\JsonLdResponse;
 use Symfony\Component\HttpFoundation\Response;
-use Twig\Environment;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Routing\RouterInterface;
 
 final class HomeController
 {
-    private $items;
-    private $twig;
+    private $router;
 
-    public function __construct(Environment $twig, Items $items)
+    public function __construct(RouterInterface $router)
     {
-        $this->twig = $twig;
-        $this->items = $items;
+        $this->router = $router;
     }
 
     public function __invoke() : Response
     {
-        return new Response($this->twig->render('home.html.twig', ['items' => $this->items]));
+        return new JsonLdResponse(
+            [
+                '@context' => 'http://schema.org/',
+                '@type' => 'WebAPI',
+                '@id' => $this->router->generate('home', [], UrlGeneratorInterface::ABSOLUTE_URL),
+                'name' => 'Example Libero Hypermedia API',
+                'potentialAction' => [
+                    [
+                        '@type' => 'FindAction',
+                        '@id' => $this->router->generate('homepage-list', [], UrlGeneratorInterface::ABSOLUTE_URL),
+                        'target' => [
+                            '@type' => 'EntryPoint',
+                            'urlTemplate' => $this->router->getRouteCollection()->get('items')->getPath(),
+                        ],
+                    ],
+                    [
+                        '@type' => 'FindAction',
+                        '@id' => $this->router->generate('find-article', [], UrlGeneratorInterface::ABSOLUTE_URL),
+                        'target' => [
+                            '@type' => 'EntryPoint',
+                            'urlTemplate' => $this->router->getRouteCollection()->get('item')->getPath(),
+                        ],
+                        'id-input' => [
+                            '@type' => 'PropertyValueSpecification',
+                            'valueRequired' => true,
+                            'valueName' => 'id',
+                        ],
+                        'result' => [
+                            '@type' => 'Article',
+                        ],
+                    ],
+                ],
+            ]
+        );
     }
 }

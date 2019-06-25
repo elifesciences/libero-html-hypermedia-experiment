@@ -2,6 +2,16 @@ home:
     path: /
     controller: App\Controller\HomeController
 
-item:
+items:
     path: /items
+    controller: App\Controller\ItemsController
+
+item:
+    path: /items/{id}
     controller: App\Controller\ItemController
+
+find-article:
+    path: /find-article
+
+homepage-list:
+    path: /homepage-list

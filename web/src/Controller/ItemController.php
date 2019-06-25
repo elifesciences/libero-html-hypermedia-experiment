@@ -2,167 +2,132 @@
 
 namespace App\Controller;
 
-use EasyRdf\Graph;
-use EasyRdf\Literal;
-use EasyRdf\Literal\Date;
-use EasyRdf\Resource;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Promise\Coroutine;
-use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\TransferStats;
-use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Psr7\UriResolver;
+use ML\JsonLD\DocumentLoaderInterface;
+use ML\JsonLD\JsonLD;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
-use function array_reduce;
-use function GuzzleHttp\Promise\all;
+use function GuzzleHttp\Psr7\uri_for;
+use function GuzzleHttp\uri_template;
 
 final class ItemController
 {
     private $client;
+    private $loader;
     private $twig;
 
-    public function __construct(ClientInterface $client, Environment $twig)
+    public function __construct(ClientInterface $client, DocumentLoaderInterface $loader, Environment $twig)
     {
         $this->client = $client;
+        $this->loader = $loader;
         $this->twig = $twig;
     }
 
-    public function __invoke(?string $id, ?string $doi) : PromiseInterface
+    public function __invoke(string $id) : Response
     {
-        return new Coroutine(
-            function () use ($doi, $id) {
-                /** @var ResponseInterface $response */
-                $response = yield $this->client->requestAsync(
-                    'GET',
-                    '',
-                    [
-                        'on_stats' => function (TransferStats $stats) use (&$url) {
-                            $url = $stats->getEffectiveUri();
-                        },
-                    ]
-                );
-
-                $page = new Graph((string) $url, (string) $response->getBody(), 'rdfa');
-
-                $handler = null;
-                foreach ($page->allOfType('schema:FindAction') as $find) {
-                    /** @var Resource $find */
-                    /** @var Resource|null $findHandler */
-                    /** @var Resource|null $resultType */
-                    $findHandler = $find->get('schema:actionHandler');
-                    $resultType = $findHandler->get('schema:result');
-
-                    if (!$resultType->isA('schema:Article')) {
-                        continue;
-                    }
-
-                    $handler = $findHandler;
-                    break;
-                }
-
-                if (!$handler instanceof Resource) {
-                    throw new RuntimeException('No find form');
-                }
-
-                $methodProperty = $handler->get('schema:method');
-                $method = $methodProperty ? $methodProperty->getValue() : 'GET';
-
-                $url = $handler->get('schema:url')->getValue();
-
-                $query = array_reduce(
-                    $handler->all('schema:requiredProperty'),
-                    function (array $query, Resource $value) use ($doi, $id) : array {
-                        switch ($name = $value->get('schema:name')->getValue()) {
-                            case 'id':
-                                $query[$name] = $id ?? $doi;
-
-                                return $query;
-                            case 'type':
-                                $query[$name] = $doi ? 'https://identifiers.org/doi' : 'http://libero.pub/id';
-
-                                return $query;
-                        }
-
-                        throw new RuntimeException("Don't know how to fill in property '{$name}'");
-                    },
-                    []
-                );
-
-                /** @var ResponseInterface $response */
-                $response = yield $this->client->requestAsync(
-                    $method,
-                    $url,
-                    [
-                        'query' => $query,
-                        'on_stats' => function (TransferStats $stats) use (&$url) {
-                            $url = $stats->getEffectiveUri();
-                        },
-                    ]
-                );
-
-                $items = new Graph((string) $url, (string) $response->getBody(), 'rdfa');
-
-                /** @var Resource $article */
-                $article = $items->allOfType('schema:Article')[0];
-
-                $data = [
-                    'title' => $article->getLiteral('schema:name')->getValue(),
-                ];
-
-                $data = array_reduce(
-                    $article->all('schema:identifier'),
-                    function (array $data, Resource $identifier) : array {
-                        switch ($identifier->get('schema:propertyID')->getUri()) {
-                            case 'http://libero.pub/id':
-                                $data['id'] = (string) $identifier->getLiteral('schema:value');
-                                break;
-                            case 'https://identifiers.org/doi':
-                                $data['doi'] = (string) $identifier->getLiteral('schema:value');
-                                break;
-                        }
-
-                        return $data;
-                    },
-                    $data
-                );
-
-                $datePublished = $article->getLiteral('schema:datePublished');
-
-                if ($datePublished instanceof Date) {
-                    $data['published_date'] = $datePublished->getValue();
-                }
-
-                $description = $article->getLiteral('schema:description');
-
-                if ($description instanceof Literal) {
-                    $data['description'] = $description->getValue();
-                }
-
-                $data = array_reduce(
-                    $article->all('schema:encoding'),
-                    function (array $data, Resource $encoding) : array {
-                        $format = $encoding->getLiteral('schema:encodingFormat')->getValue();
-                        $uri = $encoding->get('schema:contentUrl')->getUri();
-
-                        switch ($format) {
-                            case 'application/jats+xml':
-                                $data['content'] = $this->client->requestAsync('GET', $uri)
-                                    ->then(
-                                        function (ResponseInterface $response) : string {
-                                            return (string) $response->getBody();
-                                        }
-                                    );
-                                break;
-                        }
-
-                        return $data;
-                    },
-                    $data
-                );
-
-                yield new Response($this->twig->render('item.html.twig', ['item' => all($data)->wait()]));
-            }
+        $document = JsonLD::getDocument(
+            $_ENV['API_URI'],
+            [
+                'base' => $_ENV['API_URI'],
+                'compactArrays' => false,
+                'documentLoader' => $this->loader,
+            ]
         );
+        $graph = $document->getGraph();
+
+        $findAction = $graph->getNode('http://nginx:8081/find-article');
+
+        $target = $findAction->getProperty('http://schema.org/target');
+
+        $urlTemplate = $target->getProperty('http://schema.org/urlTemplate');
+
+        $inputs = [];
+        foreach ($findAction->getProperties() as $name => $value) {
+            if (!preg_match('~^http://schema\.org/.+?-input$~', $name)) {
+                continue;
+            }
+
+            $name = $value->getProperty('http://schema.org/valueName')->getValue();
+            $required = 'true' === $value->getProperty('http://schema.org/valueRequired')->getValue();
+
+            switch ($name) {
+                case 'id':
+                    $inputs[$name] = $id;
+                    break;
+                default:
+                    if ($required) {
+                        throw new RuntimeException("Don't know how to set {$name}");
+                    }
+            }
+        }
+
+        $document = JsonLD::getDocument(
+            $base = (string) UriResolver::resolve(
+                uri_for($document->getIri()),
+                uri_for(uri_template($urlTemplate->getValue(), $inputs))
+            ),
+            [
+                'base' => $base,
+                'compactArrays' => false,
+                'documentLoader' => $this->loader,
+            ]
+        );
+        $graph = $document->getGraph();
+
+        $article = $graph->getNodesByType('http://schema.org/Article')[0];
+
+        $item = [
+            'title' => $article->getProperty('http://schema.org/name')->getValue(),
+        ];
+
+        if ($description = $article->getProperty('http://schema.org/description')) {
+            $item['description'] = $description->getValue();
+        }
+
+        if ($datePublished = $article->getProperty('http://schema.org/datePublished')) {
+            $item['published_date'] = $datePublished->getValue();
+        }
+
+        foreach ($this->iterable($article->getProperty('http://schema.org/identifier')) as $identifier) {
+            if (
+                'https://identifiers.org/doi' !== $identifier->getProperty('http://schema.org/propertyID')->getValue()
+            ) {
+                continue;
+            }
+
+            $item['doi'] = $identifier->getProperty('http://schema.org/value')->getValue();
+        }
+
+        if ($articleBody = $article->getProperty('http://schema.org/articleBody')) {
+            $item['content'] = $articleBody->getValue();
+        } else {
+            foreach ($this->iterable($article->getProperty('http://schema.org/encoding')) as $encoding) {
+                $format = $encoding->getProperty('http://schema.org/encodingFormat')->getValue();
+                $uri = $encoding->getProperty('http://schema.org/contentUrl')->getId();
+
+                switch ($format) {
+                    case 'application/jats+xml':
+                        $item['content'] = (string) $this->client->request('GET', $uri)->getBody();
+                        break 2;
+                }
+            }
+        }
+
+        return new Response($this->twig->render('item.html.twig', ['item' => $item]));
+    }
+
+    private function iterable($item) : iterable
+    {
+        if (null === $item) {
+            return [];
+        }
+
+        if (is_iterable($item)) {
+            return $item;
+        }
+
+        return [$item];
     }
 }

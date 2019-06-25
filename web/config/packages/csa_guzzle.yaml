@@ -1,4 +1,6 @@
 csa_guzzle:
+    cache:
+        adapter: Csa\GuzzleHttp\Middleware\Cache\Adapter\PsrAdapter
     profiler: '%kernel.debug%'
     clients:
         libero_api:

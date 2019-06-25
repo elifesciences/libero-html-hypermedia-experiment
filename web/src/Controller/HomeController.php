@@ -2,99 +2,130 @@
 
 namespace App\Controller;
 
-use EasyRdf\Graph;
-use EasyRdf\Resource;
-use Generator;
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Promise\Coroutine;
-use GuzzleHttp\Promise\PromiseInterface;
-use GuzzleHttp\TransferStats;
-use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Psr7\UriResolver;
+use ML\JsonLD\DocumentLoaderInterface;
+use ML\JsonLD\JsonLD;
+use ML\JsonLD\TypedValue;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
-use function array_reduce;
-use function GuzzleHttp\Promise\all;
+use function GuzzleHttp\Psr7\uri_for;
+use function GuzzleHttp\uri_template;
+use function is_iterable;
+use function iterator_to_array;
+use function preg_match;
 
 final class HomeController
 {
-    private $client;
+    private $loader;
     private $twig;
 
-    public function __construct(ClientInterface $client, Environment $twig)
+    public function __construct(DocumentLoaderInterface $loader, Environment $twig)
     {
-        $this->client = $client;
+        $this->loader = $loader;
         $this->twig = $twig;
     }
 
-    public function __invoke() : PromiseInterface
+    public function __invoke() : Response
     {
-        return new Coroutine(
-            function () : Generator {
-                /** @var ResponseInterface $response */
-                $response = yield $this->client->requestAsync(
-                    'GET',
-                    '',
+        $document = JsonLD::getDocument(
+            $_ENV['API_URI'],
+            [
+                'base' => $_ENV['API_URI'],
+                'compactArrays' => false,
+                'documentLoader' => $this->loader,
+            ]
+        );
+        $graph = $document->getGraph();
+
+        $findAction = $graph->getNode('http://nginx:8081/homepage-list');
+
+        $target = $findAction->getProperty('http://schema.org/target');
+
+        $urlTemplate = $target->getProperty('http://schema.org/urlTemplate');
+
+        $inputs = [];
+        foreach ($findAction->getProperties() as $name => $value) {
+            if (!preg_match('~^http://schema\.org/.+?-input$~', $name)) {
+                continue;
+            }
+
+            $name = $value->getProperty('http://schema.org/valueName')->getValue();
+            $required = 'true' === $value->getProperty('http://schema.org/valueRequired')->getValue();
+
+            switch ($name) {
+                default:
+                    if ($required) {
+                        throw new RuntimeException("Don't know how to set {$name}");
+                    }
+            }
+        }
+
+        $document = JsonLD::getDocument(
+            $base = (string) UriResolver::resolve(
+                uri_for($document->getIri()),
+                uri_for(uri_template($urlTemplate->getValue(), $inputs))
+            ),
+            [
+                'base' => $base,
+                'compactArrays' => false,
+                'documentLoader' => $this->loader,
+            ]
+        );
+        $graph = $document->getGraph();
+
+        $list = $graph->getNodesByType('http://schema.org/Collection')[0];
+
+        $items = array_map(
+            function (TypedValue $value) use ($document) : array {
+                $document = JsonLD::getDocument(
+                    $base = (string) UriResolver::resolve(uri_for($document->getIri()), uri_for($value->getValue())),
                     [
-                        'on_stats' => function (TransferStats $stats) use (&$url) {
-                            $url = $stats->getEffectiveUri();
-                        },
+                        'base' => $base,
+                        'compactArrays' => false,
+                        'documentLoader' => $this->loader,
                     ]
                 );
+                $graph = $document->getGraph();
 
-                $page = new Graph((string) $url, (string) $response->getBody(), 'rdfa');
+                $article = $graph->getNodesByType('http://schema.org/Article')[0];
 
-                /** @var Resource $list */
-                $list = $page->allOfType('schema:Collection')[0];
+                $item = [
+                    'title' => $article->getProperty('http://schema.org/name')->getValue(),
+                ];
 
-                /** @var array<array<string, mixed>> $items */
-                $items = yield all(
-                    array_map(
-                        function (Resource $item) : PromiseInterface {
-                            return $this->client->requestAsync(
-                                'GET',
-                                $item->getUri(),
-                                [
-                                    'on_stats' => function (TransferStats $stats) use (&$url) {
-                                        $url = $stats->getEffectiveUri();
-                                    },
-                                ]
-                            )
-                                ->then(
-                                    function (ResponseInterface $response) use (&$url) : array {
-                                        $items = new Graph((string) $url, (string) $response->getBody(), 'rdfa');
+                foreach ($this->array($article->getProperty('http://schema.org/identifier')) as $identifier) {
+                    if (
+                        'http://libero.pub/id' !== $identifier->getProperty('http://schema.org/propertyID')->getValue()
+                    ) {
+                        continue;
+                    }
 
-                                        /** @var Resource $article */
-                                        $article = $items->allOfType('schema:Article')[0];
+                    $item['id'] = $identifier->getProperty('http://schema.org/value')->getValue();
+                }
 
-                                        $data = [
-                                            'title' => $article->getLiteral('schema:name')->getValue(),
-                                        ];
-
-                                        return array_reduce(
-                                            $article->all('schema:identifier'),
-                                            function (array $data, Resource $identifier) : array {
-                                                switch ($identifier->get('schema:propertyID')->getUri()) {
-                                                    case 'http://libero.pub/id':
-                                                        $data['id'] = (string) $identifier->getLiteral('schema:value');
-                                                        break;
-                                                    case 'https://identifiers.org/doi':
-                                                        $data['doi'] = (string) $identifier->getLiteral('schema:value');
-                                                        break;
-                                                }
-
-                                                return $data;
-                                            },
-                                            $data
-                                        );
-                                    }
-                                );
-                        },
-                        $list->all('schema:hasPart')
-                    )
-                );
-
-                yield new Response($this->twig->render('home.html.twig', ['items' => $items]));
-            }
+                return $item;
+            },
+            $this->array($list->getProperty('http://schema.org/hasPart'))
         );
+
+        return new Response($this->twig->render('home.html.twig', ['items' => $items]));
+    }
+
+    private function array($item) : array
+    {
+        if (null === $item) {
+            return [];
+        }
+
+        if (is_array($item)) {
+            return $item;
+        }
+
+        if (is_iterable($item)) {
+            return iterator_to_array($item);
+        }
+
+        return [$item];
     }
 }
